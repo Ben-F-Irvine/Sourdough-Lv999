@@ -16,5 +16,7 @@ Personal Android app (Kotlin + Compose). Plan and requirements: `docs/PLAN.md`. 
 
 ## Local build notes (this machine)
 
-- No Android SDK is installed outside Android Studio, so only `:engine` builds from the command line.
+- Android SDK is at `Z:\AndroidSDK` (in `local.properties`), Android Studio at `Z:\AndroidStudio`.
+- Run Gradle with the system JDK 23. Studio's bundled JBR is Java 25, which Gradle 8.12 can't run on.
+- Build and check: `./gradlew :app:assembleDebug :app:lintDebug :engine:test`.
 - If Gradle fails with "Unable to establish loopback connection", set `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=<short path>`.
