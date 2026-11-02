@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Sourdough</string>
+    <string name="channel_bake_alarms">Bake alarms</string>
+    <string name="channel_bake_alarms_description">Reminders for each step of an active bake</string>
+</resources>

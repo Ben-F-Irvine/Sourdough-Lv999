@@ -1,0 +1,18 @@
+# Sourdough Companion
+
+Personal Android app (Kotlin + Compose). Plan and requirements: `docs/PLAN.md`. Build phases there are the roadmap; finish one before starting the next.
+
+## Architecture rules
+
+- `engine/` is pure Kotlin with no Android imports. Scheduling, temperature curve and bulk progress maths live there and are unit-tested (`./gradlew :engine:test`).
+- Step times are offsets from the previous step, never stored clock times. `planned_at` on `bake_steps` is a derived cache that gets recomputed on every re-plan.
+- Timers are AlarmManager exact alarms, never in-app countdowns. Re-planning = cancel affected alarms, set new ones. Ignore changes under 10 minutes.
+- A bake copies its template's steps into `bake_steps` at start; never read the template mid-bake.
+- Sensors go behind `TemperatureSource`; scheduling code must not know which source is in use.
+- Manual DI via `AppContainer`; no Hilt/Koin.
+- Room schema is exported to `app/schemas/`; bump the DB version with a migration once real bakes are stored.
+
+## Local build notes (this machine)
+
+- No Android SDK is installed outside Android Studio, so only `:engine` builds from the command line.
+- If Gradle fails with "Unable to establish loopback connection", set `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=<short path>`.
