@@ -33,7 +33,9 @@ class Converters {
 )
 @TypeConverters(Converters::class)
 abstract class SourdoughDatabase : RoomDatabase() {
-    // TODO(phase 1): DAOs for bakes / bake_steps; seed the two starter templates and flavours.
+    abstract fun templateDao(): TemplateDao
+
+    abstract fun bakeDao(): BakeDao
 
     companion object {
         fun create(context: Context): SourdoughDatabase =
