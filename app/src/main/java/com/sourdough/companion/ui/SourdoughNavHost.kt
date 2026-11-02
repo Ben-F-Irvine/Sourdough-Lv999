@@ -1,12 +1,8 @@
 package com.sourdough.companion.ui
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -14,8 +10,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.sourdough.companion.ui.bake.BakeHome
 
-/** Top-level screens from the plan. Each is a placeholder until its build phase. */
+/** Top-level screens from the plan. Home runs the bake; the rest are placeholders until their phase. */
 enum class Screen(val route: String, val title: String) {
     Home("home", "Home"),
     LiveBake("live_bake", "Live bake"),
@@ -33,23 +30,10 @@ fun SourdoughNavHost(navController: NavHostController = rememberNavController())
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(padding),
         ) {
-            composable(Screen.Home.route) { HomePlaceholder(navController) }
+            composable(Screen.Home.route) { BakeHome(onOpen = { navController.navigate(it) }) }
             Screen.entries.filter { it != Screen.Home }.forEach { screen ->
                 composable(screen.route) { Text(screen.title, Modifier.padding(16.dp)) }
             }
-        }
-    }
-}
-
-@Composable
-private fun HomePlaceholder(navController: NavHostController) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text("Sourdough Companion")
-        Screen.entries.filter { it != Screen.Home }.forEach { screen ->
-            TextButton(onClick = { navController.navigate(screen.route) }) { Text(screen.title) }
         }
     }
 }

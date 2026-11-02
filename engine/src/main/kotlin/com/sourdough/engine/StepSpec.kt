@@ -9,9 +9,13 @@ enum class Phase { PRE_MIX, POST_MIX }
  */
 data class StepSpec(
     val name: String,
+    /** Length of the whole step, including every repeat. */
     val durationMin: Int,
     val phase: Phase,
-    /** e.g. 4 stretch-and-folds every 30 min is one step with repeatCount = 4, repeatIntervalMin = 30. */
+    /**
+     * e.g. 4 stretch-and-folds every 30 min is one step with repeatCount = 4, repeatIntervalMin = 30
+     * and durationMin = 120: folds at +0, +30, +60 and +90, next step at +120.
+     */
     val repeatCount: Int = 1,
     val repeatIntervalMin: Int = 0,
     /** "Until you say so" steps get a check-in reminder, but the next step waits for Done. */

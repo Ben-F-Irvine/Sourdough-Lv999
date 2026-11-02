@@ -4,11 +4,12 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.sourdough.engine.LiveStep
 import com.sourdough.engine.Phase
+import com.sourdough.engine.StepSpec
+import com.sourdough.engine.StepStatus
 import com.sourdough.engine.temperature.TemperatureSourceType
 import java.time.Instant
-
-enum class StepStatus { PENDING, ACTIVE, DONE, SKIPPED }
 
 @Entity(
     tableName = "bakes",
@@ -70,13 +71,24 @@ data class BakeStepEntity(
     val waitForUser: Boolean = false,
     val tempAdjusted: Boolean = false,
     val phase: Phase,
+    /** Cache of the latest plan for display; the engine recomputes it from durations on every change. */
     val plannedAt: Instant? = null,
     val startedAt: Instant? = null,
     val doneAt: Instant? = null,
+    /** Minutes added with "+15". */
+    val extraMin: Int = 0,
     /** Temperature-adjusted steps only: 0.0..1.0 of the curve's duration completed so far. */
     val progressPct: Double = 0.0,
     val status: StepStatus = StepStatus.PENDING,
-)
+) {
+    fun toLiveStep() = LiveStep(
+        id = id,
+        spec = StepSpec(name, durationMin, phase, repeatCount, repeatIntervalMin, waitForUser, tempAdjusted),
+        status = status,
+        doneAt = doneAt,
+        extraMin = extraMin,
+    )
+}
 
 @Entity(
     tableName = "temp_readings",
