@@ -140,9 +140,12 @@ class BakeRepository(
     private fun cancelAlarms(steps: List<BakeStepEntity>) =
         Planner.allAlarmKeys(steps.map { it.toLiveStep() }).forEach(alarms::cancel)
 
-    private fun titleFor(alarm: AlarmSpec, step: BakeStepEntity): String = when {
-        alarm.key.kind == AlarmKind.CHECK -> "Check the dough: ${step.name}"
-        step.repeatCount > 1 -> "${step.name} ${alarm.key.occurrence + 1} of ${step.repeatCount}"
-        else -> step.name
+    private fun titleFor(alarm: AlarmSpec, step: BakeStepEntity): String {
+        val title = when {
+            alarm.key.kind == AlarmKind.CHECK -> "Check the dough: ${step.name}"
+            step.repeatCount > 1 -> "${step.name} ${alarm.key.occurrence + 1} of ${step.repeatCount}"
+            else -> step.name
+        }
+        return "${StepIcons.emoji(step.name)} $title"
     }
 }

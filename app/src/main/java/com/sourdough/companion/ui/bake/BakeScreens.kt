@@ -36,6 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,7 @@ import com.sourdough.companion.data.db.BakeEntity
 import com.sourdough.companion.data.db.BakeStepEntity
 import com.sourdough.companion.data.db.TemplateEntity
 import com.sourdough.companion.ui.Screen
+import com.sourdough.companion.ui.components.StepIcon
 import com.sourdough.engine.Phase
 import com.sourdough.engine.PlannedStep
 import com.sourdough.engine.Planner
@@ -58,19 +60,28 @@ import java.time.format.DateTimeFormatter
 
 /** The home screen follows the bake: pick a template, then the mix checklist, then the live bake. */
 @Composable
-fun BakeHome(onOpen: (route: String) -> Unit, viewModel: BakeViewModel = viewModel(factory = BakeViewModel.Factory)) {
+fun BakeHome(
+    onOpen: (route: String) -> Unit,
+    onEditTemplate: (templateId: Long) -> Unit,
+    viewModel: BakeViewModel = viewModel(factory = BakeViewModel.Factory),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val bake = state.bake
     when {
         !state.loaded -> Unit
-        bake == null -> TemplatePicker(state.templates, viewModel, onOpen)
+        bake == null -> TemplatePicker(state.templates, viewModel, onOpen, onEditTemplate)
         bake.mixedAt == null -> MixChecklist(bake, state.steps, viewModel)
         else -> LiveBake(bake, bake.mixedAt, state.steps, viewModel)
     }
 }
 
 @Composable
-private fun TemplatePicker(templates: List<TemplateEntity>, viewModel: BakeViewModel, onOpen: (String) -> Unit) {
+private fun TemplatePicker(
+    templates: List<TemplateEntity>,
+    viewModel: BakeViewModel,
+    onOpen: (String) -> Unit,
+    onEditTemplate: (Long) -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -82,8 +93,16 @@ private fun TemplatePicker(templates: List<TemplateEntity>, viewModel: BakeViewM
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(template.name, style = MaterialTheme.typography.titleMedium)
                     template.notes?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                    Button(onClick = { viewModel.startBake(template.id) }) { Text("Start bake") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { viewModel.startBake(template.id) }) { Text("Start bake") }
+                        OutlinedButton(onClick = { onEditTemplate(template.id) }) { Text("Edit") }
+                    }
                 }
+            }
+        }
+        item {
+            OutlinedButton(onClick = { viewModel.newTemplate(onEditTemplate) }, modifier = Modifier.fillMaxWidth()) {
+                Text("New schedule")
             }
         }
         item {
@@ -149,6 +168,7 @@ private fun MixChecklist(bake: BakeEntity, steps: List<BakeStepEntity>, viewMode
             var checked by rememberSaveable(step.id) { mutableStateOf(false) }
             Row(verticalAlignment = Alignment.Top) {
                 Checkbox(checked = checked, onCheckedChange = { checked = it })
+                StepIcon(step.name, size = 28.dp, modifier = Modifier.padding(top = 10.dp, end = 8.dp))
                 Column(Modifier.padding(top = 12.dp)) {
                     Text(step.name, style = MaterialTheme.typography.titleMedium)
                     if (step.instructions.isNotBlank()) Text(step.instructions, style = MaterialTheme.typography.bodyMedium)
@@ -222,7 +242,10 @@ private fun CurrentStep(step: BakeStepEntity, planned: PlannedStep, now: Instant
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Now", style = MaterialTheme.typography.labelLarge)
-            Text(step.name, style = MaterialTheme.typography.headlineSmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StepIcon(step.name, size = 40.dp, modifier = Modifier.padding(end = 12.dp))
+                Text(step.name, style = MaterialTheme.typography.headlineSmall)
+            }
             if (step.instructions.isNotBlank()) Text(step.instructions, style = MaterialTheme.typography.bodyMedium)
             val ends = if (step.waitForUser) "Check at" else "Ends at"
             Text(
@@ -245,9 +268,14 @@ private fun TimelineRow(planned: PlannedStep, isCurrent: Boolean, isPast: Boolea
         else -> ""
     }
     val repeats = if (step.spec.repeatCount > 1) " ×${step.spec.repeatCount}" else ""
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(marker, modifier = Modifier.width(24.dp))
-        Text(formatTime(planned.start), modifier = Modifier.width(88.dp), style = MaterialTheme.typography.bodyMedium)
+    val finished = step.isFinished || isPast
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.alpha(if (finished) 0.5f else 1f),
+    ) {
+        Text(marker, modifier = Modifier.width(20.dp), color = MaterialTheme.colorScheme.primary)
+        StepIcon(step.spec.name, size = 28.dp, modifier = Modifier.padding(end = 10.dp))
+        Text(formatTime(planned.start), modifier = Modifier.width(84.dp), style = MaterialTheme.typography.bodyMedium)
         Text(
             step.spec.name + repeats,
             style = MaterialTheme.typography.bodyLarge,

@@ -14,14 +14,41 @@ interface TemplateDao {
     @Query("SELECT COUNT(*) FROM templates")
     suspend fun count(): Int
 
+    @Query("SELECT * FROM templates WHERE id = :id")
+    fun observe(id: Long): Flow<TemplateEntity?>
+
+    @Query("SELECT * FROM templates WHERE id = :id")
+    suspend fun get(id: Long): TemplateEntity
+
     @Insert
     suspend fun insert(template: TemplateEntity): Long
+
+    @Update
+    suspend fun update(template: TemplateEntity)
+
+    @Query("DELETE FROM templates WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("SELECT * FROM template_steps WHERE templateId = :templateId ORDER BY position")
+    fun observeSteps(templateId: Long): Flow<List<TemplateStepEntity>>
+
+    @Query("SELECT * FROM template_steps WHERE templateId = :templateId ORDER BY position")
+    suspend fun stepsFor(templateId: Long): List<TemplateStepEntity>
+
+    @Query("SELECT * FROM template_steps WHERE id = :id")
+    suspend fun getStep(id: Long): TemplateStepEntity?
+
+    @Insert
+    suspend fun insertStep(step: TemplateStepEntity): Long
 
     @Insert
     suspend fun insertSteps(steps: List<TemplateStepEntity>)
 
-    @Query("SELECT * FROM template_steps WHERE templateId = :templateId ORDER BY position")
-    suspend fun stepsFor(templateId: Long): List<TemplateStepEntity>
+    @Update
+    suspend fun updateSteps(steps: List<TemplateStepEntity>)
+
+    @Query("DELETE FROM template_steps WHERE id = :id")
+    suspend fun deleteStep(id: Long)
 }
 
 @Dao

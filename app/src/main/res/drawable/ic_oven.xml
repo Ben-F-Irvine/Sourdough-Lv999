@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Oven with a loaf in the window, in the launcher icon's colours. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#5B3A24"
+        android:pathData="M4,2.5h16a2,2 0 0 1 2,2v15a2,2 0 0 1 -2,2h-16a2,2 0 0 1 -2,-2v-15a2,2 0 0 1 2,-2z" />
+    <path
+        android:fillColor="#F4E4C8"
+        android:pathData="M6,5m-1.2,0a1.2,1.2 0 1 0 2.4,0a1.2,1.2 0 1 0 -2.4,0M10,5m-1.2,0a1.2,1.2 0 1 0 2.4,0a1.2,1.2 0 1 0 -2.4,0M7,8h10v1.2h-10z" />
+    <path
+        android:fillColor="#FF8A3D"
+        android:pathData="M18,5m-1.2,0a1.2,1.2 0 1 0 2.4,0a1.2,1.2 0 1 0 -2.4,0" />
+    <path
+        android:fillColor="#FFB15C"
+        android:pathData="M6,10.5h12a1,1 0 0 1 1,1v7a1,1 0 0 1 -1,1h-12a1,1 0 0 1 -1,-1v-7a1,1 0 0 1 1,-1z" />
+    <path
+        android:fillColor="#B9783F"
+        android:pathData="M7.5,18C7.5,15 9.5,13.3 12,13.3C14.5,13.3 16.5,15 16.5,18Z" />
+</vector>

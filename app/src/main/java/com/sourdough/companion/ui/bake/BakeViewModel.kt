@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sourdough.companion.SourdoughApp
 import com.sourdough.companion.data.BakeRepository
+import com.sourdough.companion.data.TemplateRepository
 import com.sourdough.companion.data.db.BakeEntity
 import com.sourdough.companion.data.db.BakeStepEntity
 import com.sourdough.companion.data.db.TemplateEntity
@@ -27,7 +28,10 @@ data class BakeUiState(
     val steps: List<BakeStepEntity> = emptyList(),
 )
 
-class BakeViewModel(private val repository: BakeRepository) : ViewModel() {
+class BakeViewModel(
+    private val repository: BakeRepository,
+    private val templateRepository: TemplateRepository,
+) : ViewModel() {
     @OptIn(ExperimentalCoroutinesApi::class)
     private val activeBakeWithSteps = repository.activeBake.flatMapLatest { bake ->
         if (bake == null) {
@@ -53,6 +57,8 @@ class BakeViewModel(private val repository: BakeRepository) : ViewModel() {
 
     fun startBake(templateId: Long) = launch { repository.startBake(templateId) }
 
+    fun newTemplate(onCreated: (Long) -> Unit) = launch { onCreated(templateRepository.create()) }
+
     fun doneMixing(bakeId: Long) = launch { repository.doneMixing(bakeId) }
 
     fun markDone(bakeId: Long, stepId: Long) = launch { repository.markDone(bakeId, stepId) }
@@ -69,7 +75,10 @@ class BakeViewModel(private val repository: BakeRepository) : ViewModel() {
 
     companion object {
         val Factory = viewModelFactory {
-            initializer { BakeViewModel((this[APPLICATION_KEY] as SourdoughApp).container.bakeRepository) }
+            initializer {
+                val container = (this[APPLICATION_KEY] as SourdoughApp).container
+                BakeViewModel(container.bakeRepository, container.templateRepository)
+            }
         }
     }
 }
