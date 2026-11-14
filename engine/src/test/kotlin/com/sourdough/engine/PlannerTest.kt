@@ -59,9 +59,12 @@ class PlannerTest {
         val updated = Planner.done(steps, 3, now = at("20:00"))
         val plan = Planner.plan(mixedAt, updated, now = at("20:00"))
         assertEquals("20:00", plan.starts()[3])
-        // Shape starts the moment Done is tapped, so only Bake needs an alarm.
+        // Shape starts the moment Done is tapped, so only Bake needs an alarm, then the finish.
         val alarms = Planner.alarms(plan, now = at("20:00"))
-        assertEquals(listOf(5L), alarms.map { it.key.stepId })
+        assertEquals(
+            listOf(AlarmKey(5, 0, AlarmKind.START) to at("20:20"), AlarmKey(5, 0, AlarmKind.FINISH) to at("21:05")),
+            alarms.map { it.key to it.at },
+        )
     }
 
     @Test
@@ -97,6 +100,20 @@ class PlannerTest {
         val updated = Planner.skip(mixedAt, steps, 4, now = at("14:10"))
         val plan = Planner.plan(mixedAt, updated, at("14:10"))
         assertEquals(plan[3].start, plan[4].start)
+    }
+
+    @Test
+    fun `stopping timers leaves no alarms and ends the bake`() {
+        val now = at("16:00")
+        val withRestDone = Planner.done(steps, 1, at("14:30"))
+        val stopped = Planner.stopAll(mixedAt, withRestDone, now)
+        val plan = Planner.plan(mixedAt, stopped, now)
+
+        assertEquals(StepStatus.DONE, stopped[0].status) // already-finished steps keep their status
+        assertEquals(now, stopped[1].doneAt) // the current step ends now
+        assertNull(stopped[2].doneAt) // later steps drop out
+        assertEquals(emptyList<AlarmSpec>(), Planner.alarms(plan, now))
+        assertNull(Planner.currentIndex(plan, now))
     }
 
     @Test

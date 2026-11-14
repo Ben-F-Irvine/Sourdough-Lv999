@@ -37,6 +37,10 @@ abstract class SourdoughDatabase : RoomDatabase() {
 
     abstract fun bakeDao(): BakeDao
 
+    abstract fun flavourDao(): FlavourDao
+
+    abstract fun settingsDao(): SettingsDao
+
     companion object {
         fun create(context: Context): SourdoughDatabase =
             Room.databaseBuilder(context, SourdoughDatabase::class.java, "sourdough.db").build()

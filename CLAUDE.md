@@ -11,6 +11,10 @@ Personal Android app (Kotlin + Compose). Plan and requirements: `docs/PLAN.md`. 
 - A repeating step's `durationMin` is the whole step; repeats fire at start + k × interval. The step editor sets it to count × interval.
 - Template steps are always ordered before-mixing first, then after-mixing; `TemplateRepository` renumbers `position` 0..n after every change.
 - A bake copies its template's steps into `bake_steps` at start; never read the template mid-bake.
+- `BakeStatus` (current step + what the countdown counts to) is shared by the live screen, the tab timer bar and the ongoing notification. `BakeRepository` refreshes the notification on every re-plan and `AlarmReceiver` refreshes it whenever an alarm fires; a FINISH alarm marks the end of the last step.
+- Game progress lives in SharedPreferences (`GameStore`), never in Room, so games never force a migration.
+- One-time data changes for existing installs (like adding a new seed schedule) run in `BakeRepository.seedIfEmpty`, guarded by a flag in the `settings` table (`SettingKeys`) so they run once and respect later deletes.
+- Updates must be installable mid-bake: no Room schema change without a migration (check `git diff app/schemas` is empty), and alarms/timer are re-set on app start and `MY_PACKAGE_REPLACED`.
 - Sensors go behind `TemperatureSource`; scheduling code must not know which source is in use.
 - Manual DI via `AppContainer`; no Hilt/Koin.
 - Room schema is exported to `app/schemas/`; bump the DB version with a migration once real bakes are stored.

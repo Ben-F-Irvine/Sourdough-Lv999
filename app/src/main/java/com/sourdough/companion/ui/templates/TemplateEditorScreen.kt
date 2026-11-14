@@ -42,11 +42,13 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sourdough.companion.SourdoughApp
 import com.sourdough.companion.data.TemplateRepository
 import com.sourdough.companion.data.db.TemplateStepEntity
+import com.sourdough.companion.ui.components.DefaultBadge
 import com.sourdough.companion.ui.components.ScreenHeader
 import com.sourdough.companion.ui.components.StepIcon
 import com.sourdough.companion.ui.components.formatDuration
 import com.sourdough.engine.Phase
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -55,6 +57,10 @@ class TemplateEditorViewModel(savedState: SavedStateHandle, private val reposito
 
     val template = repository.template(templateId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val steps = repository.steps(templateId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val isDefault = repository.defaultTemplateId.map { it == templateId }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun makeDefault() = viewModelScope.launch { repository.setDefault(templateId) }
 
     fun rename(name: String) = viewModelScope.launch { repository.rename(templateId, name) }
 
@@ -88,6 +94,7 @@ fun TemplateEditorScreen(
 ) {
     val template by viewModel.template.collectAsStateWithLifecycle()
     val steps by viewModel.steps.collectAsStateWithLifecycle()
+    val isDefault by viewModel.isDefault.collectAsStateWithLifecycle()
     val loaded = template ?: return
     // Typed text lives here and is written through to the database; reading it back would move the cursor.
     var name by remember(loaded.id) { mutableStateOf(loaded.name) }
@@ -99,6 +106,13 @@ fun TemplateEditorScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { ScreenHeader("Edit schedule", onBack) }
+        item {
+            if (isDefault) {
+                DefaultBadge()
+            } else {
+                OutlinedButton(onClick = viewModel::makeDefault) { Text("★ Make default") }
+            }
+        }
         item {
             OutlinedTextField(
                 value = name,

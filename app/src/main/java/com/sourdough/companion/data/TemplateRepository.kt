@@ -2,10 +2,13 @@ package com.sourdough.companion.data
 
 import androidx.room.withTransaction
 import com.sourdough.companion.data.db.AnchorType
+import com.sourdough.companion.data.db.SettingEntity
 import com.sourdough.companion.data.db.SourdoughDatabase
 import com.sourdough.companion.data.db.TemplateEntity
 import com.sourdough.companion.data.db.TemplateStepEntity
 import com.sourdough.engine.Phase
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
  * Editing schedule templates. Steps are kept ordered "before mixing" first, then "after mixing",
@@ -14,6 +17,12 @@ import com.sourdough.engine.Phase
  */
 class TemplateRepository(private val db: SourdoughDatabase) {
     private val dao = db.templateDao()
+    private val settings = db.settingsDao()
+
+    /** The schedule listed first and marked "Default". Null if none is set or it was deleted. */
+    val defaultTemplateId: Flow<Long?> = settings.observe(SettingKeys.DEFAULT_TEMPLATE).map { it?.toLongOrNull() }
+
+    suspend fun setDefault(id: Long) = settings.put(SettingEntity(SettingKeys.DEFAULT_TEMPLATE, id.toString()))
 
     fun template(id: Long) = dao.observe(id)
 

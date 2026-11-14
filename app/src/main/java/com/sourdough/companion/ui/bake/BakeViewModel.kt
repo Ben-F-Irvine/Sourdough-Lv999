@@ -10,6 +10,7 @@ import com.sourdough.companion.data.BakeRepository
 import com.sourdough.companion.data.TemplateRepository
 import com.sourdough.companion.data.db.BakeEntity
 import com.sourdough.companion.data.db.BakeStepEntity
+import com.sourdough.companion.data.db.FlavourEntity
 import com.sourdough.companion.data.db.TemplateEntity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,10 +25,19 @@ import kotlinx.coroutines.launch
 data class BakeUiState(
     val loaded: Boolean = false,
     val templates: List<TemplateEntity> = emptyList(),
+    val flavours: List<FlavourEntity> = emptyList(),
     val bake: BakeEntity? = null,
     val steps: List<BakeStepEntity> = emptyList(),
-)
+    val defaultTemplateId: Long? = null,
+) {
+    /** Schedules with the default one first. */
+    val sortedTemplates: List<TemplateEntity> get() = templates.sortedByDescending { it.id == defaultTemplateId }
 
+    val flavour: FlavourEntity? get() = flavours.firstOrNull { it.id == bake?.flavourId }
+    val templateName: String? get() = templates.firstOrNull { it.id == bake?.templateId }?.name
+}
+
+/** The running bake. Scoped to the activity, so every tab (and the timer bar) shares one instance. */
 class BakeViewModel(
     private val repository: BakeRepository,
     private val templateRepository: TemplateRepository,
@@ -41,14 +51,26 @@ class BakeViewModel(
         }
     }
 
-    val state: StateFlow<BakeUiState> = combine(repository.templates, activeBakeWithSteps) { templates, (bake, steps) ->
-        BakeUiState(loaded = true, templates = templates, bake = bake, steps = steps)
+    val state: StateFlow<BakeUiState> = combine(
+        repository.templates,
+        repository.flavours,
+        activeBakeWithSteps,
+        templateRepository.defaultTemplateId,
+    ) { templates, flavours, (bake, steps), defaultId ->
+        BakeUiState(
+            loaded = true,
+            templates = templates,
+            flavours = flavours,
+            bake = bake,
+            steps = steps,
+            defaultTemplateId = defaultId,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BakeUiState())
 
     init {
         viewModelScope.launch {
             repository.seedIfEmpty()
-            // Cheap and idempotent: makes sure alarms exist even if Android dropped them.
+            // Cheap and idempotent: makes sure alarms and the timer exist even if Android dropped them.
             repository.replanActive()
         }
     }
@@ -65,9 +87,21 @@ class BakeViewModel(
 
     fun addMinutes(bakeId: Long, stepId: Long) = launch { repository.addMinutes(bakeId, stepId) }
 
+    fun stopTimers(bakeId: Long) = launch { repository.stopTimers(bakeId) }
+
     fun skip(bakeId: Long, stepId: Long) = launch { repository.skip(bakeId, stepId) }
 
-    fun endBake(bakeId: Long) = launch { repository.endBake(bakeId) }
+    fun setFlavour(bakeId: Long, flavourId: Long?) = launch { repository.setFlavour(bakeId, flavourId) }
+
+    fun addFlavour(bakeId: Long, name: String) = launch { repository.setFlavour(bakeId, repository.addFlavour(name)) }
+
+    /** Ends the bake and hands its id to [onEnded], which opens it in the log for rating. */
+    fun endBake(bakeId: Long, onEnded: (Long) -> Unit) = launch {
+        repository.endBake(bakeId)
+        onEnded(bakeId)
+    }
+
+    fun cancelBake(bakeId: Long) = launch { repository.cancelBake(bakeId) }
 
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }
