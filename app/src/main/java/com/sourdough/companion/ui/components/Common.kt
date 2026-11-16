@@ -8,11 +8,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -20,6 +24,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.sourdough.companion.R
 import com.sourdough.companion.data.StepIcons
+import kotlinx.coroutines.delay
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** The step's emoji, or the drawn oven for baking. */
 @Composable
@@ -42,6 +50,25 @@ fun ScreenHeader(title: String, onBack: () -> Unit) {
     }
 }
 
+/** The current time, ticking every second while on screen. */
+@Composable
+fun rememberNow(): Instant {
+    val now by produceState(Instant.now()) {
+        while (true) {
+            delay(1_000)
+            value = Instant.now()
+        }
+    }
+    return now
+}
+
+private val timeFormat = DateTimeFormatter.ofPattern("EEE HH:mm")
+private val dateFormat = DateTimeFormatter.ofPattern("EEE d MMM yyyy")
+
+fun formatTime(at: Instant): String = timeFormat.format(at.atZone(ZoneId.systemDefault()))
+
+fun formatDate(at: Instant): String = dateFormat.format(at.atZone(ZoneId.systemDefault()))
+
 /** 270 → "4 h 30 min", 60 → "1 h", 45 → "45 min". */
 fun formatDuration(minutes: Int): String {
     val h = minutes / 60
@@ -51,4 +78,22 @@ fun formatDuration(minutes: Int): String {
         m == 0 -> "$h h"
         else -> "$h h $m min"
     }
+}
+
+/** "★ Default" label on the default schedule. */
+@Composable
+fun DefaultBadge() {
+    Text("★ Default", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+}
+
+/** A yes/no dialog for anything that ends or deletes a bake. */
+@Composable
+fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Keep it") } },
+    )
 }

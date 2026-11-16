@@ -13,6 +13,9 @@ import androidx.core.content.ContextCompat
 import com.sourdough.companion.MainActivity
 import com.sourdough.companion.R
 import com.sourdough.companion.SourdoughApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Fired by AlarmManager for each bake reminder, even with the screen off or the app closed.
@@ -43,6 +46,17 @@ class AlarmReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(context).notify(intent.dataString.hashCode(), notification)
+
+        // The step has changed, so move the ongoing countdown on to the next thing.
+        val pending = goAsync()
+        val repository = (context.applicationContext as SourdoughApp).container.bakeRepository
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                repository.refreshActiveTimer()
+            } finally {
+                pending.finish()
+            }
+        }
     }
 
     companion object {

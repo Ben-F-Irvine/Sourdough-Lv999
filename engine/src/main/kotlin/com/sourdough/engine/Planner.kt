@@ -26,7 +26,8 @@ data class PlannedStep(
     val occurrences: List<Instant>,
 )
 
-enum class AlarmKind { START, CHECK }
+/** START: a step (or one repeat) begins. CHECK: a wait-for-user step's target. FINISH: the last step ends. */
+enum class AlarmKind { START, CHECK, FINISH }
 
 /** Identifies one alarm so it can be cancelled and re-set when the plan changes. */
 data class AlarmKey(val stepId: Long, val occurrence: Int, val kind: AlarmKind)
@@ -70,7 +71,8 @@ object Planner {
     /**
      * Alarms still to fire: each step's start (every repeat), plus a "check the dough" alarm at the
      * target end of a wait-for-user step. Nothing past the first unfinished wait step is set, because
-     * those times only become real once Done is tapped.
+     * those times only become real once Done is tapped. If nothing blocks, a FINISH alarm marks the
+     * end of the last step.
      */
     fun alarms(plan: List<PlannedStep>, now: Instant): List<AlarmSpec> {
         val alarms = mutableListOf<AlarmSpec>()
@@ -81,8 +83,12 @@ object Planner {
             }
             if (p.step.spec.waitForUser) {
                 if (p.end > now) alarms += AlarmSpec(AlarmKey(p.step.id, 0, AlarmKind.CHECK), p.end)
-                break
+                return alarms
             }
+        }
+        val last = plan.lastOrNull()
+        if (last != null && !last.step.isFinished && last.end > now) {
+            alarms += AlarmSpec(AlarmKey(last.step.id, 0, AlarmKind.FINISH), last.end)
         }
         return alarms
     }
@@ -90,7 +96,8 @@ object Planner {
     /** Every alarm these steps could ever have set, for cancelling before a re-plan. */
     fun allAlarmKeys(steps: List<LiveStep>): List<AlarmKey> = steps.flatMap { step ->
         (0 until step.spec.repeatCount.coerceAtLeast(1)).map { AlarmKey(step.id, it, AlarmKind.START) } +
-            AlarmKey(step.id, 0, AlarmKind.CHECK)
+            AlarmKey(step.id, 0, AlarmKind.CHECK) +
+            AlarmKey(step.id, 0, AlarmKind.FINISH)
     }
 
     fun done(steps: List<LiveStep>, stepId: Long, now: Instant): List<LiveStep> =
@@ -100,6 +107,18 @@ object Planner {
     fun skip(anchor: Instant, steps: List<LiveStep>, stepId: Long, now: Instant): List<LiveStep> {
         val started = plan(anchor, steps, now).first { it.step.id == stepId }.start <= now
         return steps.update(stepId) { it.copy(status = StepStatus.SKIPPED, doneAt = if (started) now else null) }
+    }
+
+    /**
+     * "Stop timers": every unfinished step is skipped, so no alarms remain. The current step ends
+     * now; later ones drop out of the timeline.
+     */
+    fun stopAll(anchor: Instant, steps: List<LiveStep>, now: Instant): List<LiveStep> {
+        val starts = plan(anchor, steps, now).associate { it.step.id to it.start }
+        return steps.map { step ->
+            if (step.isFinished) step
+            else step.copy(status = StepStatus.SKIPPED, doneAt = now.takeIf { starts.getValue(step.id) <= now })
+        }
     }
 
     /** "+15": push the step's end back. An overdue wait step gets [minutes] from now, not from its old target. */

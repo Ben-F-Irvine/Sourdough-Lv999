@@ -2,6 +2,8 @@ package com.sourdough.companion
 
 import android.content.Context
 import com.sourdough.companion.alarms.AlarmScheduler
+import com.sourdough.companion.alarms.BakeTimerNotifier
+import com.sourdough.companion.ui.games.GameStore
 import com.sourdough.companion.data.BakeRepository
 import com.sourdough.companion.data.TemplateRepository
 import com.sourdough.companion.data.db.SourdoughDatabase
@@ -12,7 +14,11 @@ import com.sourdough.engine.temperature.TemperatureSource
 class AppContainer(context: Context) {
     val database: SourdoughDatabase by lazy { SourdoughDatabase.create(context) }
 
-    val bakeRepository: BakeRepository by lazy { BakeRepository(database, AlarmScheduler(context)) }
+    val bakeRepository: BakeRepository by lazy {
+        BakeRepository(database, AlarmScheduler(context), BakeTimerNotifier(context))
+    }
+
+    val games: GameStore by lazy { GameStore(context) }
 
     val templateRepository: TemplateRepository by lazy { TemplateRepository(database) }
 
