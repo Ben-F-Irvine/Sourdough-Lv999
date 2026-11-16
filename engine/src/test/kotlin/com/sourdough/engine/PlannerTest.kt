@@ -123,6 +123,25 @@ class PlannerTest {
     }
 
     @Test
+    fun `current step id follows the clock and Done taps`() {
+        assertEquals(1L, Planner.currentStepId(mixedAt, steps, at("14:10")))
+        assertEquals(2L, Planner.currentStepId(mixedAt, steps, at("14:30")))
+        // Bulk waits for Done however late it is, so a stale Shape reminder's buttons do nothing.
+        assertEquals(3L, Planner.currentStepId(mixedAt, steps, at("23:00")))
+        assertEquals(4L, Planner.currentStepId(mixedAt, Planner.done(steps, 3, at("20:00")), at("20:05")))
+    }
+
+    @Test
+    fun `reminders get Done and +15 except single folds and the finish`() {
+        val shape = steps[3].spec
+        val folds = steps[1].spec
+        assertEquals(true, Planner.hasQuickActions(AlarmKey(3, 0, AlarmKind.CHECK), steps[2].spec))
+        assertEquals(true, Planner.hasQuickActions(AlarmKey(4, 0, AlarmKind.START), shape))
+        assertEquals(false, Planner.hasQuickActions(AlarmKey(2, 1, AlarmKind.START), folds))
+        assertEquals(false, Planner.hasQuickActions(AlarmKey(5, 0, AlarmKind.FINISH), steps[4].spec))
+    }
+
+    @Test
     fun `bake is over once every step is finished or past`() {
         val finished = steps.fold(steps) { acc, s -> Planner.done(acc, s.id, at("23:00")) }
         assertNull(Planner.currentIndex(Planner.plan(mixedAt, finished, at("23:00")), at("23:00")))

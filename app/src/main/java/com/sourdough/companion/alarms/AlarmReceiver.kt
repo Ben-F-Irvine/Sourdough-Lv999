@@ -34,7 +34,8 @@ class AlarmReceiver : BroadcastReceiver() {
         val openApp = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = NotificationCompat.Builder(context, SourdoughApp.CHANNEL_BAKE_ALARMS)
+        val notificationId = intent.dataString.hashCode()
+        val builder = NotificationCompat.Builder(context, SourdoughApp.CHANNEL_BAKE_ALARMS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(intent.getStringExtra(EXTRA_TITLE))
             .setContentText(intent.getStringExtra(EXTRA_TEXT))
@@ -44,8 +45,30 @@ class AlarmReceiver : BroadcastReceiver() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openApp)
             .setAutoCancel(true)
-            .build()
-        NotificationManagerCompat.from(context).notify(intent.dataString.hashCode(), notification)
+
+        // Done and +15 without opening the app (or unlocking the phone) with doughy hands.
+        val bakeId = intent.getLongExtra(EXTRA_BAKE_ID, 0)
+        val stepId = intent.getLongExtra(EXTRA_STEP_ID, 0)
+        if (bakeId != 0L && stepId != 0L) {
+            fun action(action: String, label: String) = builder.addAction(
+                0,
+                label,
+                PendingIntent.getBroadcast(
+                    context,
+                    0,
+                    Intent(context, BakeActionReceiver::class.java)
+                        .setAction(action)
+                        .setData(intent.data)
+                        .putExtra(EXTRA_BAKE_ID, bakeId)
+                        .putExtra(EXTRA_STEP_ID, stepId)
+                        .putExtra(BakeActionReceiver.EXTRA_NOTIFICATION_ID, notificationId),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
+            action(BakeActionReceiver.ACTION_DONE, "Done")
+            action(BakeActionReceiver.ACTION_EXTEND, "+15 min")
+        }
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
 
         // The step has changed, so move the ongoing countdown on to the next thing.
         val pending = goAsync()
@@ -62,5 +85,7 @@ class AlarmReceiver : BroadcastReceiver() {
     companion object {
         const val EXTRA_TITLE = "title"
         const val EXTRA_TEXT = "text"
+        const val EXTRA_BAKE_ID = "bake_id"
+        const val EXTRA_STEP_ID = "step_id"
     }
 }

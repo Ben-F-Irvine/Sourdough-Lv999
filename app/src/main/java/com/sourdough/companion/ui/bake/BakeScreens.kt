@@ -323,6 +323,12 @@ private fun LiveBake(
                 TextButton(onClick = { confirmStop = true }) { Text("⏹  Stop timers") }
             }
         }
+        // Below both branches: Done on the last step and Stop timers land on the "complete" card.
+        state.undo?.takeIf { it.offeredAt(now) }?.let { undo ->
+            item {
+                FilledTonalButton(onClick = viewModel::undo) { Text("↩  Undo: ${undo.label}") }
+            }
+        }
 
         item {
             Card(Modifier.fillMaxWidth().padding(top = 8.dp)) {
