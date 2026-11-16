@@ -17,9 +17,29 @@ import com.sourdough.engine.LiveStep
 import com.sourdough.engine.Phase
 import com.sourdough.engine.Planner
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.Duration
 import java.time.Instant
+
+/** A change to the running bake that Undo can take back; [before] is the steps as they were. */
+data class UndoableChange(
+    val bakeId: Long,
+    /** What happened, e.g. "Shape done", for the Undo button. */
+    val label: String,
+    val at: Instant,
+    val before: List<BakeStepEntity>,
+) {
+    /** Undo is only offered for a few minutes; after that the tap was clearly meant. */
+    fun offeredAt(now: Instant): Boolean = Duration.between(at, now) < WINDOW
+
+    private companion object {
+        val WINDOW: Duration = Duration.ofMinutes(5)
+    }
+}
 
 /**
  * Every change to a bake goes through here: update bake_steps, ask the engine for the new plan,
@@ -37,6 +57,10 @@ class BakeRepository(
     private val flavourDao = db.flavourDao()
     private val settingsDao = db.settingsDao()
     private val mutex = Mutex()
+    private val _lastChange = MutableStateFlow<UndoableChange?>(null)
+
+    /** The last Done, Skip, +15 or Stop timers on the running bake, while it can still be undone. */
+    val lastChange: StateFlow<UndoableChange?> = _lastChange.asStateFlow()
 
     val templates = templateDao.observeAll()
     val flavours: Flow<List<FlavourEntity>> = flavourDao.observeAll()
@@ -101,11 +125,13 @@ class BakeRepository(
         replan(bakeId)
     }
 
-    suspend fun markDone(bakeId: Long, stepId: Long) = changeSteps(bakeId) { _, steps, now ->
-        Planner.done(steps, stepId, now)
-    }
+    /** [onlyIfCurrent] is for reminder buttons: nothing happens once the bake has moved past that step. */
+    suspend fun markDone(bakeId: Long, stepId: Long, onlyIfCurrent: Boolean = false) =
+        changeSteps(bakeId, stepId, onlyIfCurrent, { "$it done" }) { _, steps, now ->
+            Planner.done(steps, stepId, now)
+        }
 
-    suspend fun skip(bakeId: Long, stepId: Long) = changeSteps(bakeId) { anchor, steps, now ->
+    suspend fun skip(bakeId: Long, stepId: Long) = changeSteps(bakeId, stepId, label = { "$it skipped" }) { anchor, steps, now ->
         Planner.skip(anchor, steps, stepId, now)
     }
 
@@ -113,12 +139,31 @@ class BakeRepository(
      * Skips everything left, so no alarms or countdown remain. The bake stays active (and on the
      * Bake tab) until it's rated, e.g. after an overnight cold bulk you don't need reminders for.
      */
-    suspend fun stopTimers(bakeId: Long) = changeSteps(bakeId) { anchor, steps, now ->
+    suspend fun stopTimers(bakeId: Long) = changeSteps(bakeId, label = { "Timers stopped" }) { anchor, steps, now ->
         Planner.stopAll(anchor, steps, now)
     }
 
-    suspend fun addMinutes(bakeId: Long, stepId: Long, minutes: Int = 15) = changeSteps(bakeId) { anchor, steps, now ->
-        Planner.extend(anchor, steps, stepId, now, minutes)
+    suspend fun addMinutes(bakeId: Long, stepId: Long, minutes: Int = 15, onlyIfCurrent: Boolean = false) =
+        changeSteps(bakeId, stepId, onlyIfCurrent, { "+$minutes min on $it" }) { anchor, steps, now ->
+            Planner.extend(anchor, steps, stepId, now, minutes)
+        }
+
+    /**
+     * Puts the steps back as they were before the last Done, Skip, +15 or Stop timers, and re-plans.
+     * Kept in memory only: it is for a slip of the finger, not for changing your mind tomorrow.
+     */
+    suspend fun undoLastChange() = mutex.withLock {
+        val change = _lastChange.value ?: return@withLock
+        _lastChange.value = null
+        if (bakeDao.getActive()?.id != change.bakeId) return@withLock
+        val before = change.before.associateBy { it.id }
+        bakeDao.updateSteps(
+            postMixSteps(change.bakeId).map { entity ->
+                val old = before[entity.id] ?: return@map entity
+                entity.copy(status = old.status, doneAt = old.doneAt, extraMin = old.extraMin)
+            },
+        )
+        replan(change.bakeId)
     }
 
     /** Ends the bake, finished or abandoned: it moves to the log and its alarms stop. */
@@ -180,12 +225,25 @@ class BakeRepository(
 
     private suspend fun changeSteps(
         bakeId: Long,
+        stepId: Long? = null,
+        onlyIfCurrent: Boolean = false,
+        label: (stepName: String) -> String,
         change: (anchor: Instant, steps: List<LiveStep>, now: Instant) -> List<LiveStep>,
     ) = mutex.withLock {
+        // A reminder can outlive its bake; the live screen only ever acts on the active one.
+        if (onlyIfCurrent && bakeDao.getActive()?.id != bakeId) return@withLock
         val anchor = bakeDao.get(bakeId).mixedAt ?: return@withLock
         val entities = postMixSteps(bakeId)
         val now = clock()
-        val changed = change(anchor, entities.map { it.toLiveStep() }, now)
+        val live = entities.map { it.toLiveStep() }
+        if (onlyIfCurrent && Planner.currentStepId(anchor, live, now) != stepId) return@withLock
+        val changed = change(anchor, live, now)
+        _lastChange.value = UndoableChange(
+            bakeId = bakeId,
+            label = label(entities.firstOrNull { it.id == stepId }?.name.orEmpty()),
+            at = now,
+            before = entities,
+        )
         bakeDao.updateSteps(
             entities.zip(changed).map { (entity, live) ->
                 entity.copy(
@@ -212,7 +270,8 @@ class BakeRepository(
         Planner.alarms(plan, now).forEach { alarm ->
             val step = byId.getValue(alarm.key.stepId)
             val text = if (alarm.key.kind == AlarmKind.FINISH) "Tap to rate your loaf." else step.instructions
-            alarms.schedule(alarm, titleFor(alarm, step), text)
+            val actions = Planner.hasQuickActions(alarm.key, step.toLiveStep().spec)
+            alarms.schedule(alarm, titleFor(alarm, step), text, actionsForBake = bakeId.takeIf { actions })
         }
         refreshTimer(bakeId)
     }
@@ -224,6 +283,7 @@ class BakeRepository(
     }
 
     private suspend fun cancelAlarmsAndTimer(bakeId: Long) {
+        _lastChange.value = null
         cancelAlarms(postMixSteps(bakeId))
         timer.cancel()
     }

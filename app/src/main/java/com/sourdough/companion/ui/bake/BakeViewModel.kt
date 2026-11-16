@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sourdough.companion.SourdoughApp
 import com.sourdough.companion.data.BakeRepository
 import com.sourdough.companion.data.TemplateRepository
+import com.sourdough.companion.data.UndoableChange
 import com.sourdough.companion.data.db.BakeEntity
 import com.sourdough.companion.data.db.BakeStepEntity
 import com.sourdough.companion.data.db.FlavourEntity
@@ -29,6 +30,8 @@ data class BakeUiState(
     val bake: BakeEntity? = null,
     val steps: List<BakeStepEntity> = emptyList(),
     val defaultTemplateId: Long? = null,
+    /** The last Done, Skip, +15 or Stop timers on this bake, if it can still be undone. */
+    val undo: UndoableChange? = null,
 ) {
     /** Schedules with the default one first. */
     val sortedTemplates: List<TemplateEntity> get() = templates.sortedByDescending { it.id == defaultTemplateId }
@@ -56,7 +59,8 @@ class BakeViewModel(
         repository.flavours,
         activeBakeWithSteps,
         templateRepository.defaultTemplateId,
-    ) { templates, flavours, (bake, steps), defaultId ->
+        repository.lastChange,
+    ) { templates, flavours, (bake, steps), defaultId, lastChange ->
         BakeUiState(
             loaded = true,
             templates = templates,
@@ -64,6 +68,7 @@ class BakeViewModel(
             bake = bake,
             steps = steps,
             defaultTemplateId = defaultId,
+            undo = lastChange?.takeIf { it.bakeId == bake?.id },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BakeUiState())
 
@@ -90,6 +95,8 @@ class BakeViewModel(
     fun stopTimers(bakeId: Long) = launch { repository.stopTimers(bakeId) }
 
     fun skip(bakeId: Long, stepId: Long) = launch { repository.skip(bakeId, stepId) }
+
+    fun undo() = launch { repository.undoLastChange() }
 
     fun setFlavour(bakeId: Long, flavourId: Long?) = launch { repository.setFlavour(bakeId, flavourId) }
 

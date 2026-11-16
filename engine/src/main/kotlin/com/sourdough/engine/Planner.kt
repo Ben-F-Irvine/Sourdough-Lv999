@@ -68,6 +68,22 @@ object Planner {
         plan.indexOfFirst { !it.step.isFinished && (it.step.spec.waitForUser || it.end > now) }
             .takeIf { it >= 0 }
 
+    /** Id of the step the baker is on, or null when the bake is over. */
+    fun currentStepId(anchor: Instant, steps: List<LiveStep>, now: Instant): Long? {
+        val plan = plan(anchor, steps, now)
+        return currentIndex(plan, now)?.let { plan[it].step.id }
+    }
+
+    /**
+     * Whether a reminder gets Done and +15 buttons. They act on the whole step, so a single fold of
+     * a repeating step gets none (Done would end every fold left), and neither does the finish.
+     */
+    fun hasQuickActions(key: AlarmKey, spec: StepSpec): Boolean = when (key.kind) {
+        AlarmKind.CHECK -> true
+        AlarmKind.START -> spec.repeatCount <= 1
+        AlarmKind.FINISH -> false
+    }
+
     /**
      * Alarms still to fire: each step's start (every repeat), plus a "check the dough" alarm at the
      * target end of a wait-for-user step. Nothing past the first unfinished wait step is set, because

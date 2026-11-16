@@ -19,10 +19,15 @@ class AlarmScheduler(private val context: Context) {
     /** False on Android 12 if the user revoked "Alarms and reminders"; alarms may then run late. */
     fun canScheduleExact(): Boolean = alarmManager.canScheduleExactAlarms()
 
-    fun schedule(alarm: AlarmSpec, title: String, text: String) {
+    /** [actionsForBake]: the bake whose step this reminder offers Done and +15 buttons for, if any. */
+    fun schedule(alarm: AlarmSpec, title: String, text: String, actionsForBake: Long? = null) {
         val intent = intentFor(alarm.key)
             .putExtra(AlarmReceiver.EXTRA_TITLE, title)
             .putExtra(AlarmReceiver.EXTRA_TEXT, text)
+        if (actionsForBake != null) {
+            intent.putExtra(AlarmReceiver.EXTRA_BAKE_ID, actionsForBake)
+                .putExtra(AlarmReceiver.EXTRA_STEP_ID, alarm.key.stepId)
+        }
         val pending = PendingIntent.getBroadcast(
             context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
